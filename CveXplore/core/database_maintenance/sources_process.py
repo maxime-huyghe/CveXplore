@@ -367,6 +367,33 @@ class CVEDownloads(NVDApiHandler):
         return cve
 
     @staticmethod
+    def add_full_cve_info_from_cpeuri(cve: dict, cpeuri: dict):
+        cve = CVEDownloads.add_if_missing(
+            cve, "vulnerable_product", cpeuri["criteria"]
+        )
+        cve = CVEDownloads.add_if_missing(
+            cve,
+            "vulnerable_configuration",
+            cpeuri["criteria"],
+        )
+        cve = CVEDownloads.add_if_missing(
+            cve,
+            "vulnerable_configuration_stems",
+            CVEDownloads.stem(cpeuri["criteria"]),
+        )
+        vendor, product = CVEDownloads.get_vendor_product(
+            cpeuri["criteria"]
+        )
+        cve = CVEDownloads.add_if_missing(cve, "vendors", vendor)
+        cve = CVEDownloads.add_if_missing(cve, "products", product)
+        cve = CVEDownloads.add_if_missing(
+            cve,
+            "vulnerable_product_stems",
+            CVEDownloads.stem(cpeuri["criteria"]),
+        )
+        return cve
+
+    @staticmethod
     def get_vendor_product(cpeUri: str):
         vendor = cpeUri.split(":")[3]
         product = cpeUri.split(":")[4]
@@ -375,7 +402,7 @@ class CVEDownloads(NVDApiHandler):
     def file_to_queue(self, *args):
         pass
 
-    def process_the_item(self, item: dict = None):
+    def process_the_item(self, item: dict | None = None):
         if item is None:
             return None
 
@@ -595,32 +622,15 @@ class CVEDownloads(NVDApiHandler):
                                                 "vulnerable_product_stems",
                                                 vulnerable_version["stem"],
                                             )
+                                    else:
+                                        # No cpe matching the given criteria (CPE db is not exhaustive).
+                                        # As of writing, about 1000 CVE have this issue.
+                                        cve = self.add_full_cve_info_from_cpeuri(cve, cpeuri)
+
                                 else:
                                     # If the cpeMatch did not have any of the version start/end modifiers,
                                     # add the CPE string as it is.
-                                    cve = self.add_if_missing(
-                                        cve, "vulnerable_product", cpeuri["criteria"]
-                                    )
-                                    cve = self.add_if_missing(
-                                        cve,
-                                        "vulnerable_configuration",
-                                        cpeuri["criteria"],
-                                    )
-                                    cve = self.add_if_missing(
-                                        cve,
-                                        "vulnerable_configuration_stems",
-                                        self.stem(cpeuri["criteria"]),
-                                    )
-                                    vendor, product = self.get_vendor_product(
-                                        cpeuri["criteria"]
-                                    )
-                                    cve = self.add_if_missing(cve, "vendors", vendor)
-                                    cve = self.add_if_missing(cve, "products", product)
-                                    cve = self.add_if_missing(
-                                        cve,
-                                        "vulnerable_product_stems",
-                                        self.stem(cpeuri["criteria"]),
-                                    )
+                                    cve = self.add_full_cve_info_from_cpeuri(cve, cpeuri)
                             else:
                                 cve = self.add_if_missing(
                                     cve, "vulnerable_configuration", cpeuri["criteria"]
